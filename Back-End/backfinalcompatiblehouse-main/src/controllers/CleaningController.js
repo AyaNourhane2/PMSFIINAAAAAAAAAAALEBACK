@@ -1,4 +1,3 @@
-// src/controllers/CleaningController.js
 import CleaningService from '../services/CleaningService.js';
 
 class CleaningController {
@@ -38,6 +37,28 @@ class CleaningController {
       res.status(200).json(orders);
     } catch (error) {
       res.status(500).json({ message: error.message });
+    }
+  }
+
+  static async addProduct(req, res) {
+    try {
+      const { item, quantity, minQuantity, category, photoUrl } = req.body;
+      const newProduct = await CleaningService.addProduct({ 
+        item, 
+        quantity, 
+        minQuantity, 
+        category, 
+        photoUrl 
+      });
+      res.status(201).json(newProduct);
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        res.status(400).json({ message: `Un produit avec le nom "${req.body.item}" existe déjà` });
+      } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+        res.status(400).json({ message: 'Contrainte de clé étrangère violée' });
+      } else {
+        res.status(500).json({ message: `Erreur serveur: ${error.message}` });
+      }
     }
   }
 }

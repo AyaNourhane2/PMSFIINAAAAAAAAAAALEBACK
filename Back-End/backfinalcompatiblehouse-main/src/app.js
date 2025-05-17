@@ -6,7 +6,6 @@ import jwt from 'jsonwebtoken';
 import { pool } from './config/db.js';
 import { initializeDatabase, checkDatabaseConnection } from './utils/dbUtils.js';
 
-// Import des routes
 import authRoutes from './routes/authRoutes.js';
 import usersManagRoutes from './routes/usersmanagroute.js';
 import paymentRoutes from './routes/paymentRoutes.js';
@@ -23,7 +22,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware amélioré
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true,
@@ -34,8 +32,8 @@ app.options('*', cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Middleware d'authentification intégré
 const authenticateToken = (req, res, next) => {
+  if (req.skipAuth) return next();
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     return res.status(401).json({ success: false, message: 'Accès non autorisé: Token manquant' });
@@ -49,24 +47,24 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
-// Vérification de la connexion à la base de données
 checkDatabaseConnection()
   .then(() => console.log('✅ Connexion à la base de données établie'))
   .catch(err => console.error('❌ Erreur de connexion à la base:', err));
 
-// Routes API
 app.use('/api/auth', authRoutes);
 app.use('/api/management', usersManagRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/tax_payments', taxPaymentRoutes);
-app.use('/api/messages', messageRoutes); // Sans authentification
-app.use('/api/housekeeping_tasks', housekeepingTaskRoutes); // Sans authentification
-app.use('/api/staff', staffRoutes); // Sans authentification
-app.use('/api/inventory_orders', inventoryOrderRoutes); // Sans authentification
-app.use('/api/rooms', roomRoutes); // Sans authentification
-app.use('/api/cleaning', cleaningRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/housekeeping_tasks', housekeepingTaskRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/inventory_orders', inventoryOrderRoutes);
+app.use('/api/rooms', roomRoutes);
+app.use('/api/cleaning', (req, res, next) => {
+  req.skipAuth = true;
+  next();
+}, cleaningRoutes);
 
-// Route de santé
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
@@ -75,18 +73,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Gestion des erreurs 404
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route non trouvée' });
+  console.log(`404 route non trover`);
 });
 
-// Gestion des erreurs globales
 app.use((err, req, res, next) => {
   console.error('Erreur:', err.stack);
   res.status(500).json({ success: false, message: 'Erreur interne du serveur' });
 });
 
-// Initialisation du serveur
 const startServer = async () => {
   try {
     await initializeDatabase();
@@ -101,7 +97,6 @@ const startServer = async () => {
   }
 };
 
-// Gestion des erreurs non capturées
 process.on('unhandledRejection', (err) => {
   console.error('Rejet non géré:', err);
   process.exit(1);

@@ -1,6 +1,5 @@
 import { pool } from '../config/db.js';
 
-// Définitions complètes des tables
 const tableDefinitions = {
   users: `
     CREATE TABLE IF NOT EXISTS users (
@@ -43,32 +42,33 @@ const tableDefinitions = {
       INDEX idx_is_active (is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `,
-    cleaning_inventory: `
-  CREATE TABLE IF NOT EXISTS cleaning_inventory (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    item VARCHAR(100) NOT NULL,
-    quantity INT NOT NULL,
-    min_quantity INT NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_category (category)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`,
-
-cleaning_orders: `
-  CREATE TABLE IF NOT EXISTS cleaning_orders (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT NOT NULL,
-    product_name VARCHAR(100) NOT NULL,
-    quantity INT NOT NULL,
-    order_date DATE NOT NULL,
-    status ENUM('pending', 'processing', 'delivered') NOT NULL DEFAULT 'pending',
-    FOREIGN KEY (product_id) REFERENCES cleaning_inventory(id),
-    INDEX idx_status (status)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`,
-   rooms: `
+  cleaning_inventory: `
+    CREATE TABLE IF NOT EXISTS cleaning_inventory (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      item VARCHAR(100) NOT NULL,
+      quantity INT NOT NULL,
+      min_quantity INT NOT NULL,
+      category VARCHAR(50) NOT NULL,
+      photo_url VARCHAR(255) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_category (category)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `,
+  cleaning_orders: `
+    CREATE TABLE IF NOT EXISTS cleaning_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      product_id INT NOT NULL,
+      product_name VARCHAR(100) NOT NULL, -- Added to match query expectation
+      quantity INT NOT NULL,
+      order_date DATE NOT NULL,
+      status ENUM('pending', 'processing', 'delivered') NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES cleaning_inventory(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+      INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `,
+  rooms: `
     CREATE TABLE IF NOT EXISTS rooms (
       id INT AUTO_INCREMENT PRIMARY KEY,
       room_number VARCHAR(10) NOT NULL UNIQUE,
@@ -117,25 +117,24 @@ cleaning_orders: `
       performance DECIMAL(3,1)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `,
-
   payments: `
-  CREATE TABLE IF NOT EXISTS payments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    client_name VARCHAR(100) NOT NULL,
-    total_amount DECIMAL(10,2) NOT NULL,
-    payment_method VARCHAR(50) NOT NULL,
-    payment_date DATE NOT NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`,
-tax_payments: `
-  CREATE TABLE IF NOT EXISTS tax_payments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    type VARCHAR(50) NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    date DATE NOT NULL,
-    status ENUM('payé', 'en attente') NOT NULL DEFAULT 'en attente'
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`,
+    CREATE TABLE IF NOT EXISTS payments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      client_name VARCHAR(100) NOT NULL,
+      total_amount DECIMAL(10,2) NOT NULL,
+      payment_method VARCHAR(50) NOT NULL,
+      payment_date DATE NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `,
+  tax_payments: `
+    CREATE TABLE IF NOT EXISTS tax_payments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      type VARCHAR(50) NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      date DATE NOT NULL,
+      status ENUM('payé', 'en attente') NOT NULL DEFAULT 'en attente'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `,
   messages: `
     CREATE TABLE IF NOT EXISTS messages (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -169,7 +168,6 @@ tax_payments: `
       FOREIGN KEY (user_id) REFERENCES users(id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `,
-   
   reservations: `
     CREATE TABLE IF NOT EXISTS reservations (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -211,7 +209,6 @@ tax_payments: `
   `
 };
 
-// Fonction pour créer une table
 const createTable = async (tableName, query) => {
   const conn = await pool.getConnection();
   try {
@@ -228,14 +225,12 @@ const createTable = async (tableName, query) => {
   }
 };
 
-// Initialisation des données
 const seedInitialData = async () => {
   const conn = await pool.getConnection();
   try {
-    // Vérifier si l'admin existe
     const [adminRows] = await conn.query('SELECT id FROM users WHERE user_type = "super_admin" LIMIT 1');
     if (adminRows.length === 0) {
-      const hashedPassword = '$2a$10$N9qo8uLOickgx2ZMRZoMy.MZHbjS2X6AJR6dRWRo7KTCCa7Pq3L8a'; // "Admin123!"
+      const hashedPassword = '$2a$10$N9qo8uLOickgx2ZMRZoMy.MZHbjS2X6AJR6dRWRo7KTCCa7Pq3L8a';
       await conn.query(
         `INSERT INTO users 
         (username, email, password, first_name, last_name, user_type) 
@@ -245,15 +240,14 @@ const seedInitialData = async () => {
       console.log('👑 Compte admin créé');
     }
 
-    // Vérifier si les utilisateurs existent
     const [userRows] = await conn.query('SELECT COUNT(*) as count FROM users');
-    if (userRows[0].count <= 1) { // Only admin exists
+    if (userRows[0].count <= 1) {
       const users = [
         { username: 'john_doe', email: 'john@example.com', first_name: 'John', last_name: 'Doe', user_type: 'staff' },
         { username: 'jane_smith', email: 'jane@example.com', first_name: 'Jane', last_name: 'Smith', user_type: 'staff' },
         { username: 'alice_brown', email: 'alice@example.com', first_name: 'Alice', last_name: 'Brown', user_type: 'staff' }
       ];
-      const hashedPassword = '$2a$10$N9qo8uLOickgx2ZMRZoMy.MZHbjS2X6AJR6dRWRo7KTCCa7Pq3L8a'; // "Admin123!"
+      const hashedPassword = '$2a$10$N9qo8uLOickgx2ZMRZoMy.MZHbjS2X6AJR6dRWRo7KTCCa7Pq3L8a';
       for (const user of users) {
         await conn.query(
           `INSERT INTO users 
@@ -265,7 +259,6 @@ const seedInitialData = async () => {
       console.log('👥 Utilisateurs de test créés');
     }
 
-    // Vérifier si les chambres existent
     const [roomRows] = await conn.query('SELECT COUNT(*) as count FROM rooms');
     if (roomRows[0].count === 0) {
       const rooms = Array.from({ length: 9 }, (_, i) => ({
@@ -285,7 +278,6 @@ const seedInitialData = async () => {
       console.log('🏠 Chambres 1001-1009 créées');
     }
 
-    // Vérifier si le personnel existe
     const [staffRows] = await conn.query('SELECT COUNT(*) as count FROM staff');
     if (staffRows[0].count === 0) {
       const staff = [
@@ -304,7 +296,6 @@ const seedInitialData = async () => {
       console.log('👷 Personnel de test créé');
     }
 
-    // Vérifier si les tâches de ménage existent
     const [taskRows] = await conn.query('SELECT COUNT(*) as count FROM housekeeping_tasks');
     if (taskRows[0].count === 0) {
       const tasks = [
@@ -324,7 +315,6 @@ const seedInitialData = async () => {
       console.log('🧹 Tâches de ménage créées');
     }
 
-    // Vérifier si les commandes d'inventaire existent
     const [orderRows] = await conn.query('SELECT COUNT(*) as count FROM inventory_orders');
     if (orderRows[0].count === 0) {
       const orders = [
@@ -343,7 +333,6 @@ const seedInitialData = async () => {
       console.log('🛒 Commandes d\'inventaire créées');
     }
 
-    // Vérifier si les messages existent
     const [messageRows] = await conn.query('SELECT COUNT(*) as count FROM messages');
     if (messageRows[0].count === 0) {
       const messages = [
@@ -360,6 +349,49 @@ const seedInitialData = async () => {
       }
       console.log('💬 Messages créés');
     }
+
+    const [inventoryRows] = await conn.query('SELECT COUNT(*) as count FROM cleaning_inventory');
+    if (inventoryRows[0].count === 0) {
+      const cleaningInventory = [
+        { item: 'Serviettes', quantity: 50, min_quantity: 30, category: 'Textile' },
+        { item: 'Détergent', quantity: 10, min_quantity: 15, category: 'Produits nettoyage' },
+        { item: 'Gants jetables', quantity: 20, min_quantity: 50, category: 'Protection' },
+        { item: 'Sac poubelle', quantity: 100, min_quantity: 200, category: 'Fournitures' },
+        { item: 'Shampoing moquette', quantity: 5, min_quantity: 10, category: 'Produits nettoyage' },
+        { item: 'Désinfectant', quantity: 8, min_quantity: 20, category: 'Produits nettoyage' },
+        { item: 'Eponges', quantity: 25, min_quantity: 40, category: 'Outils' },
+        { item: 'Balai', quantity: 15, min_quantity: 10, category: 'Outils' },
+        { item: 'Serpillère', quantity: 12, min_quantity: 10, category: 'Outils' },
+        { item: 'Savon mains', quantity: 30, min_quantity: 50, category: 'Hygiène' }
+      ];
+      for (const item of cleaningInventory) {
+        await conn.query(
+          `INSERT INTO cleaning_inventory 
+          (item, quantity, min_quantity, category) 
+          VALUES (?, ?, ?, ?)`,
+          [item.item, item.quantity, item.min_quantity, item.category]
+        );
+      }
+      console.log('🧼 Inventaire de nettoyage initialisé');
+    }
+
+    const [cleaningOrderRows] = await conn.query('SELECT COUNT(*) as count FROM cleaning_orders');
+    if (cleaningOrderRows[0].count === 0) {
+      const cleaningOrders = [
+        { product_id: 1, product_name: 'Serviettes', quantity: 15, order_date: '2023-05-15', status: 'delivered' },
+        { product_id: 3, product_name: 'Gants jetables', quantity: 50, order_date: '2023-05-18', status: 'processing' },
+        { product_id: 5, product_name: 'Shampoing moquette', quantity: 10, order_date: '2023-05-20', status: 'delivered' }
+      ];
+      for (const order of cleaningOrders) {
+        await conn.query(
+          `INSERT INTO cleaning_orders 
+          (product_id, product_name, quantity, order_date, status) 
+          VALUES (?, ?, ?, ?, ?)`,
+          [order.product_id, order.product_name, order.quantity, order.order_date, order.status]
+        );
+      }
+      console.log('📦 Commandes de nettoyage initialisées');
+    }
   } catch (error) {
     console.error('Erreur initialisation données:', error);
     throw error;
@@ -368,12 +400,10 @@ const seedInitialData = async () => {
   }
 };
 
-// Initialisation complète de la DB
 export const initializeDatabase = async () => {
   try {
     console.log('🚀 Début initialisation DB...');
     
-    // Création des tables dans l'ordre pour respecter les contraintes de clés étrangères
     await createTable('users', tableDefinitions.users);
     await createTable('rooms', tableDefinitions.rooms);
     await createTable('housekeeping_tasks', tableDefinitions.housekeeping_tasks);
@@ -384,10 +414,9 @@ export const initializeDatabase = async () => {
     await createTable('messages', tableDefinitions.messages);
     await createTable('inventory_orders', tableDefinitions.inventory_orders);
     await createTable('audit_logs', tableDefinitions.audit_logs);
-     await createTable('cleaning_inventory', tableDefinitions.cleaning_inventory);
-      await createTable('cleaning_orders ', tableDefinitions.cleaning_orders);
+    await createTable('cleaning_inventory', tableDefinitions.cleaning_inventory);
+    await createTable('cleaning_orders', tableDefinitions.cleaning_orders);
 
-    // Peuplement initial
     await seedInitialData();
     
     console.log('🎉 Base de données initialisée!');
@@ -398,7 +427,6 @@ export const initializeDatabase = async () => {
   }
 };
 
-// Vérification connexion DB
 export const checkDatabaseConnection = async () => {
   try {
     await pool.query('SELECT 1');
